@@ -184,7 +184,7 @@ class UglifyJsPlugin {
 							filename: file
 						});
 
-                        if ( options.wrapTry ) {
+                        if ( options.wrapCatch ) {
                             ast = ast.transform( wrapCatch );
                         }
 
