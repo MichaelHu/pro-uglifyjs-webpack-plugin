@@ -12,6 +12,107 @@ const RequestShortener = require("webpack/lib/RequestShortener");
 const ModuleFilenameHelpers = require("webpack/lib/ModuleFilenameHelpers");
 const uglify = require("uglify-js");
 
+function getNodeDesc( node, maxlen ) {
+    // note: when node is of primary type，output it directly
+    if ( 'string' == typeof node || 'number' == typeof node ) {
+        return node + '';
+    }
+    else if ( node instanceof uglify.AST_Token ) {
+        return node.value;
+    }
+    else if ( 'function' != typeof node.print ) {
+        return 'no node.print';
+    }
+
+    var _stream = uglify.OutputStream();
+    node.print( _stream );
+    var _outputCode = _stream.toString();
+    return _outputCode.substr( 0, 50 );
+}
+
+var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
+
+        var needCatch = this.has_directive( 'use catch' );
+        if ( node instanceof uglify.AST_Call 
+            && node.expression.name == 'eval' ) {
+
+            var parentNode = this.parent( 1 );
+            if ( parentNode instanceof uglify.AST_Toplevel
+                || (
+                    parentNode instanceof uglify.AST_Defun
+                    || parentNode instanceof uglify.AST_Function 
+                ) 
+                ) {
+                var evalInfo = getNodeDesc( node, 50 );
+                var nodeTry = uglify.parse( 
+                        'try{}catch( e ) { e.message += "\\n[ eval error: ' 
+                            + evalInfo.replace(/["\\]/g, '\\$&')
+                                .replace( /[\r?\n]/g, ' ')
+                                .replace( /\s{2,}/g, '' ) 
+                            + ' ... ]"; throw Error( e ); }' 
+                    );
+                nodeTry.body[ 0 ].body.unshift( node );
+                descend( node, this ); 
+                return nodeTry;
+            }
+        }
+
+        if ( 
+            ( node instanceof uglify.AST_Defun 
+                || node instanceof uglify.AST_Function 
+            )
+            && needCatch ) {
+
+            var funcName = node.name && node.name.name;
+            var funcInfo;
+            if ( funcName ) {
+                funcInfo = funcName;
+            }
+            else {
+                var parentNode = this.parent();
+
+                if ( parentNode instanceof uglify.AST_Assign ) {
+                    funcInfo = getNodeDesc( parentNode.left, 50 );
+                }
+                else if ( parentNode instanceof uglify.AST_VarDef ) {
+                    funcInfo = getNodeDesc( parentNode.name, 50 );
+                }
+                else if ( parentNode instanceof uglify.AST_ObjectProperty ) {
+                    funcInfo = getNodeDesc( parentNode.key, 50 );
+                }
+                else {
+                    funcInfo = getNodeDesc( node, 50 );
+                }
+            }
+
+            descend( node, this ); 
+            if ( node.body.length == 1 
+                && node.body[ 0 ].body
+                && node.body[ 0 ].body.start
+                && node.body[ 0 ].body.start.value == 'try' ) {
+                return node;
+            }
+            funcInfo = funcInfo || '';
+            if ( typeof funcInfo != 'string' ) {
+                console.log( funcInfo );
+            }
+
+            var nodeTry = uglify.parse( 
+                    'try{}catch( e ) { e.message += "\\n[ func error: ' 
+                        + funcInfo.replace(/["\\]/g, '\\$&')
+                            .replace( /[\r?\n]/g, ' ')
+                            .replace( /\s{2,}/g, '' ) 
+                        + ' ... ]"; throw Error( e ); }' 
+                );
+            var oldBody = node.body;
+
+            node.body = [ nodeTry ];
+            nodeTry.body[ 0 ].body = nodeTry.body[ 0 ].body.concat( oldBody );
+            return node;
+        }
+
+    } );
+
 class UglifyJsPlugin {
 	constructor(options) {
 		if(typeof options !== "object" || Array.isArray(options)) options = {};
@@ -82,6 +183,11 @@ class UglifyJsPlugin {
 						let ast = uglify.parse(input, {
 							filename: file
 						});
+
+                        if ( options.wrapTry ) {
+                            ast = ast.transform( wrapCatch );
+                        }
+
 						if(options.compress !== false) {
 							ast.figure_out_scope();
 							const compress = uglify.Compressor(options.compress || {
