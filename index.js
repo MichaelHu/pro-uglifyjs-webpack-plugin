@@ -20,14 +20,11 @@ function getNodeDesc( node, maxlen ) {
     else if ( node instanceof uglify.AST_Token ) {
         return node.value;
     }
-    else if ( 'function' != typeof node.print ) {
-        return 'no node.print';
+    else if ( 'function' != typeof node.print_to_string ) {
+        return 'no node.print_to_string';
     }
-
-    var _stream = uglify.OutputStream();
-    node.print( _stream );
-    var _outputCode = _stream.toString();
-    return _outputCode.substr( 0, 50 );
+    var _outputCode = node.print_to_string();
+    return _outputCode.substr( 0, maxlen );
 }
 
 var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
@@ -44,13 +41,13 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
                 ) 
                 ) {
                 var evalInfo = getNodeDesc( node, 50 );
+                // Note: use distinct catchParameter names to prevent compress error of uglifyjs
                 var paramName = 'e_' + Date.now() + '_' + ( Math.random() * 10000 | 0 );
                 var nodeTry = uglify.parse( 
                         'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ eval error: ' 
                             + evalInfo.replace(/["\\]/g, '\\$&')
                                 .replace( /[\r?\n]/g, ' ')
-                                .replace( /\s{2,}/g, '' ) 
-                            + ' ... ]"; throw Error(' + paramName + '); }' 
+                            + ' ... ]"; throw Error(' + paramName + '); }'
                     );
                 nodeTry.body[ 0 ].body.unshift( node );
                 descend( node, this ); 
@@ -97,11 +94,10 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
 
             var paramName = 'e_' + Date.now() + '_' + ( Math.random() * 10000 | 0 );
             var nodeTry = uglify.parse( 
-                    'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ func error: ' 
+                    'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ func error: '
                         + funcInfo.replace(/["\\]/g, '\\$&')
                             .replace( /[\r?\n]/g, ' ')
-                            .replace( /\s{2,}/g, '' ) 
-                        + ' ... ]"; throw Error(' + paramName + '); }' 
+                        + ' ... ]"; throw Error(' + paramName + '); }'
                 );
             var oldBody = node.body;
 
@@ -186,9 +182,16 @@ class UglifyJsPlugin {
                         if ( options.wrapCatch ) {
                             ast = ast.transform( wrapCatch );
                             // Note: reparse the reconstructed ast to ensure correct syntax scope
-                            ast = uglify.parse( ast.print_to_string(), {
-                                filename: file
-                            });
+                            ast = uglify.parse( 
+                                // remove useless directive `"use catch";`
+                                ast.print_to_string().replace(
+                                    /"use catch";/g
+                                    , ''
+                                )
+                                , {
+                                    filename: file
+                                }
+                            );
                         }
 
 						if(options.compress !== false) {
