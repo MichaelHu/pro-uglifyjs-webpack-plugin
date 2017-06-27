@@ -44,12 +44,13 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
                 ) 
                 ) {
                 var evalInfo = getNodeDesc( node, 50 );
+                var paramName = 'e_' + Date.now() + '_' + ( Math.random() * 10000 | 0 );
                 var nodeTry = uglify.parse( 
-                        'try{}catch( e ) { e.message += "\\n[ eval error: ' 
+                        'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ eval error: ' 
                             + evalInfo.replace(/["\\]/g, '\\$&')
                                 .replace( /[\r?\n]/g, ' ')
                                 .replace( /\s{2,}/g, '' ) 
-                            + ' ... ]"; throw Error( e ); }' 
+                            + ' ... ]"; throw Error(' + paramName + '); }' 
                     );
                 nodeTry.body[ 0 ].body.unshift( node );
                 descend( node, this ); 
@@ -93,16 +94,14 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
                 return node;
             }
             funcInfo = funcInfo || '';
-            if ( typeof funcInfo != 'string' ) {
-                console.log( funcInfo );
-            }
 
+            var paramName = 'e_' + Date.now() + '_' + ( Math.random() * 10000 | 0 );
             var nodeTry = uglify.parse( 
-                    'try{}catch( e ) { e.message += "\\n[ func error: ' 
+                    'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ func error: ' 
                         + funcInfo.replace(/["\\]/g, '\\$&')
                             .replace( /[\r?\n]/g, ' ')
                             .replace( /\s{2,}/g, '' ) 
-                        + ' ... ]"; throw Error( e ); }' 
+                        + ' ... ]"; throw Error(' + paramName + '); }' 
                 );
             var oldBody = node.body;
 
@@ -186,6 +185,10 @@ class UglifyJsPlugin {
 
                         if ( options.wrapCatch ) {
                             ast = ast.transform( wrapCatch );
+                            // Note: reparse the reconstructed ast to ensure correct syntax scope
+                            ast = uglify.parse( ast.print_to_string(), {
+                                filename: file
+                            });
                         }
 
 						if(options.compress !== false) {
