@@ -47,7 +47,7 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
                         'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ eval error: ' 
                             + evalInfo.replace(/["\\]/g, '\\$&')
                                 .replace( /[\r?\n]/g, ' ')
-                            + ' ... ]"; throw Error(' + paramName + '); }'
+                            + ' ... ]"; throw ' + paramName + '; }'
                     );
                 nodeTry.body[ 0 ].body.unshift( node );
                 descend( node, this ); 
@@ -97,7 +97,7 @@ var wrapCatch = new uglify.TreeTransformer( function( node, descend ) {
                     'try{}catch(' + paramName + '){' + paramName + '.message += "\\n[ func error: '
                         + funcInfo.replace(/["\\]/g, '\\$&')
                             .replace( /[\r?\n]/g, ' ')
-                        + ' ... ]"; throw Error(' + paramName + '); }'
+                        + ' ... ]"; throw ' + paramName + '; }'
                 );
             var oldBody = node.body;
 
