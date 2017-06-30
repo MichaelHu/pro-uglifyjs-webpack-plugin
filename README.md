@@ -41,7 +41,10 @@ wrap `function body`:
         }
     }
 
-you should only set the `tryCatch` option to true.
+you should only:
+
+1. set the `wrapCatch` option to true.
+2. add directive `"use catch;"` where you need the plugin to wrap something for you.
 
 
 ## Installation
@@ -56,7 +59,7 @@ you should only set the `tryCatch` option to true.
     var proUglify = require( 'pro-uglifyjs-webpack-plugin' );
     config.plugins = config.plugins.concat( [
         new proUglify( {
-            wrapTry: true,
+            wrapCatch: true,
             compress: { ... },
             mangle: false,
             output: {
@@ -64,3 +67,10 @@ you should only set the `tryCatch` option to true.
             }
         } )
     ] );
+
+> in `file.js`
+
+    "use catch";
+    ...
+
+
