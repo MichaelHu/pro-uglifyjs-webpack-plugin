@@ -20,7 +20,8 @@ wrap `eval`:
         eval( 'var a = 5; console.log( a )' );
     }
     catch ( e ) {
-        throw Error( e );
+        e.message += '<info extracted from the source, such as function name or code snippets>';
+        throw e;
     }
     ...
 
@@ -37,7 +38,8 @@ wrap `function body`:
             // function body goes here
         }
         catch ( e ) {
-            throw Error( e );
+            e.message += '<info extracted from the source, such as function name or code snippets>';
+            throw e;
         }
     }
 
